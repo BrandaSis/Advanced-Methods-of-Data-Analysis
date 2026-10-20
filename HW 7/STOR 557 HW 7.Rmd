@@ -1,0 +1,139 @@
+---
+title: "STOR 557 HW 7"
+author: "Branda Sisoutham"
+date: "2026-10-20"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(faraway)
+data(coagulation)
+head(coagulation)
+str(coagulation)
+```
+
+```{r}
+boxplot(coag ~ diet, data = coagulation,
+        xlab = "Diet",
+        ylab = "Coagulation Time",
+        main = "Coagulation Time by Diet")
+```
+Diet C has the highest coagulation times, while diets A and D have the lowest. Diets B and D show more variability, and diet C has a possible outlier.
+
+```{r}
+m1 <- lm(coag ~ diet, data = coagulation)
+
+summary(m1)
+
+predict(m1,
+        newdata = data.frame(diet = "D"),
+        interval = "prediction",
+        level = 0.95)
+```
+The predicted coagulation time for a new animal assigned to Diet D is 61, with a 95% prediction interval of (55.76, 66.24).
+
+```{r}
+
+library(lme4)
+m2 <- lmer(coag ~ 1 + (1 | diet),
+           data = coagulation, REML = TRUE)
+
+summary(m2)
+
+predict(m2, newdata = data.frame(diet = "D"))
+```
+
+```{r}
+pred <- predict(m2, newdata = data.frame(diet = "D"))
+pred + c(-1, 1) * 1.96 * sigma(m2)
+```
+Using a random effects model with REML, the predicted coagulation time for a new animal on Diet D is 61.17, with an approximate 95% prediction interval of (56.53, 65.81).
+
+```{r}
+mu <- fixef(m2)[1]
+
+sd_new <- sqrt(VarCorr(m2)$diet[1,1] + sigma(m2)^2)
+
+mu + c(-1, 1) * 1.96 * sd_new
+```
+The predicted coagulation time for a new animal on a new diet is 64.01, with an approximate 95% prediction interval of (55.86, 72.16). The interval is wider because it includes variation between diets and animals.
+
+```{r}
+mu <- fixef(m2)[1]
+
+sd_new <- sqrt(VarCorr(m2)$diet[1,1] + sigma(m2)^2)
+
+mu
+mu + c(-1, 1) * 1.96 * sd_new
+```
+The predicted coagulation time is 64.01, with an approximate 95% prediction interval of (55.86, 72.16). This is the same as part (d) because the model does not account for individual animal effects, and the previous diet has worn off.
+
+```{r}
+data(eggprod)
+head(eggprod)
+str(eggprod)
+```
+
+```{r}
+boxplot(eggs ~ treat, data = eggprod,
+        main = "Egg Production by Treatment",
+        xlab = "Treatment",
+        ylab = "Number of Eggs")
+
+boxplot(eggs ~ block, data = eggprod,
+        main = "Egg Production by Block",
+        xlab = "Block",
+        ylab = "Number of Eggs")
+```
+Treatments E and F generally produce more eggs than treatment O. Treatment F shows the most variability. Egg production also differs across blocks, with Block 1 having the highest production and Block 4 the lowest.
+
+```{r}
+m1 <- lm(eggs ~ treat + block, data = eggprod)
+
+summary(m1)
+anova(m1)
+plot(m1, which = 1)
+plot(m1, which = 2)
+```
+The fixed effects model shows that treatment significantly affects egg production (p = 0.0449), while block does not (p = 0.2145). The diagnostic plots show some deviations, but no major violations of the model assumptions.
+
+```{r}
+library(lme4)
+
+m2 <- lmer(eggs ~ treat + (1 | block),
+           data = eggprod, REML = TRUE)
+
+summary(m2)
+```
+
+```{r}
+confint(m2, parm = c("treatF", "treatO"),
+        method = "Wald")
+```
+Treatment E has the highest predicted egg production (349 eggs). It is significantly better than treatment O, but not significantly different from treatment F. Therefore, we cannot conclude that E is better than both treatments.
+
+```{r}
+library(pbkrtest)
+full <- lmer(eggs ~ treat + (1 | block),
+             data = eggprod, REML = FALSE)
+
+reduced <- lmer(eggs ~ 1 + (1 | block),
+                data = eggprod, REML = FALSE)
+
+KRmodcomp(full, reduced)
+```
+The Kenward-Roger F-test shows that treatment significantly affects egg production (p = 0.04485). This agrees with the fixed effects model from part (b), which gave the same p-value.
+
+```{r}
+set.seed(123)
+PBmodcomp(full, reduced, nsim = 1000)
+```
+The bootstrap test gave a p-value of 0.06394, which is not statistically significant at the 0.05 level. This differs from the Kenward-Roger test (p = 0.04485), which found a significant treatment effect.
+
+```{r}
+library(RLRsim)
+exactRLRT(m2)
+```
+The random effects test gave a p-value of 0.2138, showing that block is not statistically significant. This agrees with the fixed effects model from part (b), which gave a p-value of 0.2145.

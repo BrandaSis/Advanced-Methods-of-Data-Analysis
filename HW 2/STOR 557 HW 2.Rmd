@@ -1,0 +1,184 @@
+---
+title: "Homework 2"
+author: "Branda Sisoutham"
+date: "2026-09-03"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(faraway)
+library(lattice)
+data(pima)
+```
+
+## Question 1 (C2 E2)
+
+```{r}
+head(pima)
+```
+``` {r}
+pima$testf = factor(pima$test)
+summary(pima$testf)
+histogram(~ insulin | testf, data = pima)
+```
+The distributions are right skewed for both groups, much of the data being 0 which could mean some values are missing. 
+
+```{r}
+pima$insulin[pima$insulin == 0] = NA
+histogram(~ insulin | testf, data = pima)
+```
+Both the distributions are still right skewed, this means women who tested positive for diabetes tend to have higher insulin levels than those who tested negative.
+
+```{r}
+pima$glucose[pima$glucose == 0] = NA
+pima$diastolic[pima$diastolic == 0] = NA
+pima$triceps[pima$triceps == 0] = NA
+pima$bmi[pima$bmi == 0] = NA
+m1 = lm(test ~ pregnant + glucose + diastolic + triceps +
+        insulin + bmi + diabetes + age, data=pima)
+
+summary(m1)
+```
+The model uses 392 observations which is less because the model does not use data that has missing variables.
+
+```{r}
+m2 = lm(test ~ pregnant + glucose + diastolic + triceps +
+        bmi + diabetes + age, data=pima)
+
+summary(m2)
+```
+When we remove insulin, the model used 532 observation and its more than the old model because even from the histogram we can see that many of them has missing insulin values. 
+
+```{r}
+pima_complete = model.frame(m1)
+m2_same = lm(test ~ pregnant + glucose + diastolic + triceps +
+             bmi + diabetes + age, data=pima_complete)
+anova(m2_same, m1)
+```
+Using an F-test for the models using the same observations since they had different amounts of them, there is not enough evidence that insulin significantly improves the model since out p-value is 0.54 > 0.05. 
+
+```{r}
+m_full = lm(test ~ pregnant + glucose + diastolic + triceps +
+            insulin + bmi + diabetes + age,
+            data = pima_complete)
+m_aic = step(m_full, direction = "backward")
+```
+Using backward selection with AIC, the selected predictors were pregnant, glucose, BMI, diabetes, and age. The selected model used 392 observations. 
+
+```{r}
+pima$missing = as.numeric(!complete.cases(pima))
+table(pima$missing)
+m_missing = lm(test ~ missing, data=pima)
+summary(m_missing)
+m_final = lm(test ~ pregnant + glucose + bmi + diabetes + age,
+             data=pima)
+
+summary(m_final)
+```
+Using the test, the missing values was not significantly associated with diabetes test results based on our p-value. Based off that, I refit the selected model using the full dataset, which is 752 observations instead of 392. This is appropriate because the selected model does not include the variables responsible for most of the missing values. 
+
+```{r}
+quantile(pima$bmi, c(0.25, 0.75), na.rm=TRUE)
+coef(m_final)["bmi"] * (36.6 - 27.5)
+confint(m_final, "bmi") * (36.6 - 27.5)
+```
+A woman at the third BMI quartile has an estimated probability of testing positive for diabetes which is 12.36 percentage points higher than a woman in the first quartile. The 95% confidence interval for this difference is 8.49 to 16.22 percentage points. 
+
+```{r}
+t.test(diastolic ~ testf, data=pima)
+```
+Women who tested positive had a higher mean diastolic blood pressure of 75.32 than woman who tested negative 70.88, and the t-test showed a significant difference between p-value. However, diastolic blood pressure was no significant in the full regression model. This is not contradictory because the t-test looks at diastolic blood pressure by itself, while regression measures its effect after account the other predictors. 
+
+## Question 2 (C2 E3)
+```{r}
+data(kyphosis, package="rpart")
+```
+
+```{r}
+data(kyphosis, package="rpart")
+head(kyphosis)
+k = as.numeric(kyphosis$Kyphosis == "present")
+```
+```{r}
+plot(jitter(k) ~ Age, data=kyphosis)
+
+plot(jitter(k) ~ Number, data=kyphosis)
+
+plot(jitter(k) ~ Start, data=kyphosis)
+```
+All three predictors have some relationship with kyphosis and it appears to be more common with higher ageand Number vales and lower Start values. 
+```{r}
+m_kyp = glm(Kyphosis ~ Age + Number + Start,
+            family = binomial,
+            data = kyphosis)
+
+summary(m_kyp)
+plot(fitted(m_kyp), residuals(m_kyp, type="deviance"))
+abline(h=0)
+```
+The residual plot shows two distinct groups because the response is binary. Since a few of the observations have large residuals this could mean that the predctions may be a little off. 
+
+```{r}
+bins = cut(fitted(m_kyp), breaks=10)
+
+binfit = tapply(fitted(m_kyp), bins, mean)
+binres = tapply(residuals(m_kyp, type="response"), bins, mean)
+
+plot(binfit, binres)
+abline(h=0)
+```
+Many of the residuals hover around 0 but the others are near 0.2 especially the higher fitted values. The model may not fit well for the observations. 
+
+```{r}
+bins_start = cut(kyphosis$Start, breaks=10)
+
+binstart = tapply(kyphosis$Start, bins_start, mean)
+binres_start = tapply(residuals(m_kyp, type="response"), bins_start, mean)
+
+plot(binstart, binres_start)
+abline(h=0)
+```
+Since the higher fitted values are starting to hover around 0 this could mean that the response may not be linear.
+
+```{r}
+qqnorm(residuals(m_kyp, type="deviance"))
+qqline(residuals(m_kyp, type="deviance"))
+```
+The residuals dont follow a straight line so this means that they are not normally distributed. 
+
+```{r}
+plot(hatvalues(m_kyp))
+```
+Most of the observations have low leverage, there are a couple have have high leverage and these could be the ones influencing the fitted model. 
+
+```{r}
+library(ResourceSelection)
+hoslem.test(as.numeric(kyphosis$Kyphosis == "present"),
+           fitted(m_kyp),
+           g = 10)
+```
+```{r}
+pred = fitted(m_kyp)
+obs = as.numeric(kyphosis$Kyphosis == "present")
+
+groups = cut(pred, breaks=10)
+
+pred_bin = tapply(pred, groups, mean)
+obs_bin = tapply(obs, groups, mean)
+
+plot(pred_bin, obs_bin,
+     xlab="Predicted Probability",
+     ylab="Observed Proportion")
+
+abline(0, 1)
+```
+The observed proportion are somewhat close to the predicted probabilities, since the p value of the Hosmer-Lemeshow was 0.60 theres no strong evidence of the poor model fit. 
+
+```{r}
+predicted = ifelse(fitted(m_kyp) > 0.5, "present", "absent")
+table(Actual = kyphosis$Kyphosis, Predicted = predicted)
+```
+The model correctly predicts present only 41% of the time. 
+
+

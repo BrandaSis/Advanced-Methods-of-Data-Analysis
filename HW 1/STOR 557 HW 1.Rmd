@@ -1,0 +1,121 @@
+---
+title: "STOR 557 HW 1"
+author: "Branda Sisoutham"
+date: "2026-08-27"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1
+
+```{r}
+nukes=
+  read.table('https://rls.sites.oasis.unc.edu/faculty/rs/source/Data/nukes.dat',header=T)
+
+nukes$LC = log(nukes$C)
+nukes$LT1 = log(nukes$T1)
+nukes$LT2 = log(nukes$T2)
+nukes$LS = log(nukes$S)
+nukes$LN = log(nukes$N)
+
+m1 = lm(LC ~ D + LT1 + LT2 + LS + PR + NE + CT + BW + LN + PT, data=nukes)
+summary(m1)
+m2 = lm(LC ~ D + LT1 + LT2 + LS + PR + NE + CT + LN + PT, data=nukes)
+m3 = lm(LC ~ D + LT2 + LS + PR + NE + CT + LN + PT, data=nukes)
+m4 = lm(LC ~ D + LS + PR + NE + CT + LN + PT, data=nukes)
+m5 = lm(LC ~ D + LS + NE + CT + LN + PT, data=nukes)
+summary(m5)
+m6 = lm(LC ~ D + LS + NE + CT + LN, data=nukes)
+AIC(m1, m2, m3, m4, m5, m6)
+```
+
+Based on the question I transformed the variables C, T1, T2, S, and N using log. After that I made the full regression model first then I used backwards elimination in order to find the "best" model. After every model I would drop the variable that had the highest P value until I got to the point where all the variables would be statistically significant. I found that model 5 which included D, LS, NE, CT, LN, and PT was the best out of the 5 that I tested since it had the the second highest adjusted R^2 only by 0.0031 but as well as the lowest AIC at -18.68. 
+
+## Question 2
+
+```{r}
+newplant = data.frame(
+  D = 67.99,
+  LS = log(1065),
+  NE = 0,
+  CT = 0,
+  LN = log(8),
+  PT = 0
+)
+
+exp(predict(m5, newdata = newplant, interval = "confidence", level = 0.95))
+
+exp(predict(m5, newdata = newplant, interval = "prediction", level = 0.95))
+```
+The 95% confidence interval is (356.932, 496.3639) which means that the estimated mean cost for the plant with these certain characteristics is between $356.93 million to $496.26 million. The 95% prediction interval is (291.5877, 607.4739) which estimates the possible cost of one individual new plant itself to be between $291.59 million to $607.47 million. 
+
+## Question 3
+
+```{r}
+m5_original = lm(C ~ D + LS + NE + CT + LN + PT, data=nukes)
+library(MASS)
+boxcox(m5_original)
+
+m_identity = lm(C ~ D + LS + NE + CT + LN + PT, data=nukes)
+
+m_sqrt = lm(sqrt(C) ~ D + LS + NE + CT + LN + PT, data=nukes)
+
+m_log = lm(LC ~ D + LS + NE + CT + LN + PT, data=nukes)
+
+summary(m_identity)$adj.r.squared
+summary(m_sqrt)$adj.r.squared
+summary(m_log)$adj.r.squared
+
+m_Soriginal = lm(LC ~ D + S + NE + CT + LN + PT, data=nukes)
+summary(m_Soriginal)$adj.r.squared
+summary(m_log)$adj.r.squared
+
+m_Noriginal = lm(LC ~ D + LS + NE + CT + N + PT, data=nukes)
+summary(m_Noriginal)$adj.r.squared
+summary(m_log)$adj.r.squared
+
+```
+
+Even though our maximum is around lambda = -0.2, our lambda = 0 is contained within our 95% confidence interval. This means using Log(C) would be appropriate for our models. I tested other transformations of C including the original, square root, and log and they all have relatively similar adjusted R^2 values. Since only LS and LN were in my final model, I also tested it with the original S and N and found that Log(S) had a higher adjusted R^2 while the original N had a higher adjusted R^2. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

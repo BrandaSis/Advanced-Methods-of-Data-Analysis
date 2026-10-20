@@ -1,0 +1,122 @@
+---
+title: "STOR 557 HW 6"
+author: "Branda Sisoutham"
+date: "2026-10-13"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(faraway)
+data(death)
+head(death)
+```
+```{r}
+tab <- xtabs(y ~ defend + penalty, data = death)
+tab
+prop.table(tab, 1)
+```
+
+```{r}
+tab2 <- xtabs(y ~ defend + penalty + victim, data = death)
+round(prop.table(tab2, c(1, 3)) * 100, 2)
+```
+
+```{r}
+fisher.test(tab)
+fisher.test(tab2[, , "b"])
+fisher.test(tab2[, , "w"])
+mantelhaen.test(tab2)
+```
+Overall, White defendants received the death penalty more often than Black defendants (11.88% vs. 10.24%). However, when looking at the victim's race, Black defendants had higher rates in both groups. This shows Simpson's paradox. All p-values were greater than 0.05, so none of the differences were statistically significant.
+
+```{r}
+m1 <- glm(y ~ defend + victim + penalty,
+          family = poisson, data = death)
+
+m2 <- glm(y ~ defend*victim + victim*penalty,
+          family = poisson, data = death)
+
+m3 <- glm(y ~ (defend + victim + penalty)^2,
+          family = poisson, data = death)
+
+AIC(m1, m2, m3)
+anova(m2, m3, test = "Chisq")
+```
+
+```{r}
+anova(m1, m2, test = "Chisq")
+```
+Model 2 is the most appropriate model. It includes interactions between defendant race and victim race, and between victim race and the death penalty. Model 2 fits significantly better than Model 1 (p < 0.001), while Model 3 does not significantly improve the fit (p = 0.2771).
+
+```{r}
+b1 <- glm(I(penalty == "yes") ~ victim,
+          weights = y, family = binomial,
+          data = death)
+
+b2 <- glm(I(penalty == "yes") ~ victim + defend,
+          weights = y, family = binomial,
+          data = death)
+
+summary(b1)
+anova(b1, b2, test = "Chisq")
+
+```
+The binomial regression shows that victim race is significant (p = 0.0225), but adding defendant race does not significantly improve the model (p = 0.2771). Therefore, the model using only victim race is preferred. This agrees with the dependence model from part (b).
+
+```{r}
+library(faraway)
+data(uncviet)
+head(uncviet)
+str(uncviet)
+```
+
+```{r}
+m1 <- glm(y ~ sex + year + policy,
+          family = poisson, data = uncviet)
+m2 <- glm(y ~ (sex + year + policy)^2,
+          family = poisson, data = uncviet)
+
+anova(m1, m2, test = "Chisq")
+```
+
+```{r}
+drop1(m2, test = "Chisq")
+```
+The model with all two-way interactions is the most appropriate. All three interactions (sex × year, sex × policy, and year × policy) are statistically significant (p < 0.05). The model also fits the data adequately (p = 0.084), so a three-way interaction is not necessary.
+
+```{r}
+
+uncviet$year_score <- match(uncviet$year,
+                           c("Fresh", "Soph", "Junior",
+                             "Senior", "Grad"))
+
+uncviet$policy_score <- match(uncviet$policy,
+                             c("A", "B", "C", "D"))
+
+m_score <- glm(y ~ sex*year + sex*policy +
+                year_score:policy_score,
+               family = poisson, data = uncviet)
+
+summary(m_score)
+```
+
+```{r}
+uncviet$year_score2 <- c(Fresh=1, Soph=2, Junior=3,
+                         Senior=4, Grad=6)[as.character(uncviet$year)]
+
+uncviet$policy_score2 <- c(A=1, B=2, C=3,
+                           D=5)[as.character(uncviet$policy)]
+
+m_alt <- glm(y ~ sex*year + sex*policy +
+              year_score2:policy_score2,
+             family = poisson, data = uncviet)
+
+summary(m_alt)
+AIC(m_score, m_alt, m2)
+
+```
+The model shows a significant positive relationship between year and opinion (p < 0.001). Students in higher school years tend to favor less military involvement in Vietnam. Changing the scores did not change this conclusion. The alternative scores gave a better fit, with a lower AIC of 288.81 compared to 305.35.

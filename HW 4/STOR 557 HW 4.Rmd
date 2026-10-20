@@ -1,0 +1,302 @@
+---
+title: "STOR 557 HW 4"
+author: "Branda Sisoutham"
+date: "2026-09-25"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(faraway)
+data(worldcup)
+```
+
+
+```{r}
+wc <- subset(worldcup, Position != "Goalkeeper")
+
+wc$tackles90 <- wc$Tackles / wc$Time * 90
+wc$passes90 <- wc$Passes / wc$Time * 90
+
+mod <- glm(Shots ~ Team + Position + tackles90 + passes90 +
+             offset(log(Time/90)),
+           family = poisson,
+           data = wc)
+
+summary(mod)
+```
+Tackles had a significant negative effect on shots, with each additional tackle per 90 minutes associated with about an 8.4% decrease in expected shot rate. Passes had almost no effect and were not statistically significant.
+
+```{r}
+lev <- hatvalues(mod)
+
+i <- which.max(lev)
+
+lev[i]
+wc[i, ]
+
+plot(lev,
+     ylab = "Leverage",
+     xlab = "Player",
+     main = "Leverage Values")
+
+abline(h = 2 * length(coef(mod)) / nrow(wc), lty = 2)
+```
+David Villa had the highest leverage at about 0.27. His value was high because he was unusual compared with the other players, but it was not extremely far from the other high leverage values.
+
+```{r}
+infl <- influence(mod)$coef
+tackle.change <- infl[, "tackles90"]
+
+i <- which.max(abs(tackle.change))
+
+tackle.change[i]
+wc[i, ]
+
+plot(tackle.change,
+     xlab = "Player",
+     ylab = "Change in tackle coefficient",
+     main = "Change in Tackle Coefficient")
+
+abline(h = 0, lty = 2)
+```
+Mascherano caused the largest change in the tackle coefficient, about -0.0078. He is unusual because he had 19 tackles but 0 shots. His value is somewhat larger than the others, but not extremely far away.
+
+```{r}
+cook <- cooks.distance(mod)
+
+i <- which.max(cook)
+
+cook[i]
+wc[i, ]
+
+plot(cook,
+     xlab = "Player",
+     ylab = "Cook's Distance",
+     main = "Cook's Distance")
+
+abline(h = 4 / nrow(wc), lty = 2)
+```
+Dempsey had the largest Cook’s distance, about 0.063. He was unusual because he took a high number of shots for a midfielder.
+
+```{r}
+jr <- rstudent(mod)
+i <- which.max(abs(jr))
+
+jr[i]
+wc[i, ]
+fitted(mod)[i]
+```
+GonzalezC had the largest absolute jackknife residual, about 4.57. He took 10 shots, while the model predicted only about 1.69, so he was much higher than expected.
+
+```{r}
+plot(residuals(mod) ~ predict(mod, type = "link"),
+     xlab = "Linear Predictor",
+     ylab = "Deviance Residuals",
+     main = "Residuals vs Fitted Values")
+
+abline(h = 0, lty = 2)
+```
+The curved lines appear because shots are discrete count data, so players with the same number of shots fall along similar curves. There is no strong overall pattern, but there are a few large residuals that may be unusual.
+
+```{r}
+plot(wc$Tackles, wc$Shots,
+     xlab = "Tackles",
+     ylab = "Shots",
+     main = "Shots vs Tackles")
+```
+The raw plot shows a weak negative relationship between tackles and shots. Players with more tackles generally tend to have fewer shots, but there is a lot of scatter.
+
+```{r}
+shots90 <- wc$Shots / wc$Time * 90
+
+plot(wc$tackles90, shots90,
+     xlab = "Tackles per 90 Minutes",
+     ylab = "Shots per 90 Minutes",
+     main = "Shots per Game vs Tackles per Game")
+```
+After adjusting for playing time, the negative relationship is a little clearer. Players with more tackles per 90 minutes generally have fewer shots per 90 minutes.
+
+```{r}
+mu <- predict(mod, type = "response")
+
+z <- predict(mod, type = "link") +
+     (wc$Shots - mu) / mu -
+     log(wc$Time / 90)
+
+plot(wc$tackles90, z,
+     xlab = "Tackles per 90 Minutes",
+     ylab = "Linearized Response",
+     main = "Linearized Response vs Tackles per Game")
+```
+The linearized response shows the negative relationship more clearly and is more appropriate for the Poisson model. The third plot is the best because it accounts for the Poisson model and the log link, so it shows the relationship between tackles and shots more appropriately.
+
+```{r}
+mu <- predict(mod, type = "response")
+
+u <- (wc$Shots - mu) / mu +
+     coef(mod)["tackles90"] * wc$tackles90
+
+plot(wc$tackles90, u,
+     xlab = "Tackles per 90 Minutes",
+     ylab = "Partial Residual",
+     main = "Partial Residual Plot for Tackles")
+
+abline(0, coef(mod)["tackles90"])
+```
+The plot shows a negative relationship between tackles and shots. The point far to the right is unusual, but it does not appear to be very influential because it still follows the overall trend.
+
+```{r}
+mu <- predict(mod, type = "response")
+
+z <- predict(mod, type = "link") +
+     (wc$Shots - mu) / mu
+
+plot(predict(mod, type = "link"), z,
+     xlab = "Linear Predictor",
+     ylab = "Linearized Response",
+     main = "Link Function Diagnostic")
+
+abline(0, 1)
+```
+The points generally follow the straight-line pattern, so the default log link appears reasonable. There are a few unusual points, but no strong evidence that a different link is needed.
+
+
+```{r}
+library(faraway)
+data(dvisits)
+```
+
+```{r}
+plot(dvisits$age, jitter(dvisits$doctorco),
+     xlab = "Age",
+     ylab = "Doctor Visits",
+     main = "Doctor Visits vs Age")
+plot(dvisits$illness, jitter(dvisits$doctorco),
+     xlab = "Illness",
+     ylab = "Doctor Visits",
+     main = "Doctor Visits vs Illness")
+```
+Doctor visits tend to increase slightly with age, but the relationship is not very strong. People with more illnesses generally tend to have more doctor visits, although there is still a lot of variation.
+```{r}
+dvisits$condition <- factor(
+  ifelse(dvisits$chcond2 == 1, "Limited",
+  ifelse(dvisits$chcond1 == 1, "Not limited", "None"))
+)
+
+boxplot(doctorco ~ condition, data = dvisits,
+        xlab = "Chronic Condition",
+        ylab = "Doctor Visits",
+        main = "Doctor Visits by Chronic Condition")
+```
+People with limited chronic conditions tend to have more doctor visits than the other two groups. 
+
+```{r}
+mod2 <- glm(doctorco ~ sex + age + agesq + income +
+              levyplus + freepoor + freerepa +
+              illness + actdays + hscore + condition,
+            family = poisson,
+            data = dvisits)
+
+summary(mod2)
+
+deviance(mod2)
+df.residual(mod2)
+pchisq(deviance(mod2), df.residual(mod2), lower.tail = FALSE)
+```
+The model appears to fit the data well because the residual deviance (4379.5) is smaller than the residual degrees of freedom (5177), and the goodness-of-fit p-value is very large.
+
+```{r}
+plot(residuals(mod2) ~ predict(mod2, type = "link"),
+     xlab = "Linear Predictor",
+     ylab = "Deviance Residuals",
+     main = "Residuals vs Fitted Values")
+
+abline(h = 0, lty = 2)
+
+stats::qqnorm(residuals(mod2),
+              main = "QQ Plot of Residuals")
+stats::qqline(residuals(mod2))
+```
+The lines appear because doctor visits are count data, so many people have the same number of visits. The QQ plot is not straight and shows some large residuals, but normal residuals are not expected for a Poisson model.
+
+```{r}
+mod2.step <- step(mod2, direction = "both", trace = FALSE)
+
+summary(mod2.step)
+coef(mod2.step)
+```
+The selected model predicts more doctor visits for people who are older, have more illnesses, more activity days, and higher health scores. Lower income and being in the free-poor group are associated with fewer visits.
+
+```{r}
+last <- dvisits[nrow(dvisits), ]
+
+lambda <- predict(mod2.step, newdata = last, type = "response")
+lambda
+
+visits <- 0:10
+probs <- dpois(visits, lambda)
+
+data.frame(visits, probs)
+```
+The last person is predicted to have about an 85.9% chance of 0 doctor visits, 13.1% chance of 1 visit, and about 1.0% chance of 2 visits. The probability of 3 or more visits is very small.
+
+```{r}
+obs <- table(dvisits$doctorco)
+
+lambda <- fitted(mod2.step)
+visits <- 0:max(dvisits$doctorco)
+
+exp.freq <- sapply(visits, function(x) {
+  sum(dpois(x, lambda))
+})
+
+comparison <- data.frame(
+  Visits = visits,
+  Observed = as.numeric(obs),
+  Expected = exp.freq
+)
+
+comparison
+```
+There are more zero doctor visits than the Poisson model predicts (4141 observed vs. about 4014 expected). The model also underpredicts some of the larger visit counts, so a zero-inflated model may be worth considering.
+
+```{r}
+lm2 <- lm(formula(mod2.step), data = dvisits)
+
+# compare fitted values
+plot(fitted(mod2.step), fitted(lm2),
+     xlab = "Poisson Fitted Values",
+     ylab = "Linear Model Fitted Values",
+     main = "Poisson vs Linear Model Fits")
+
+abline(0, 1)
+```
+The two models give similar fitted values for smaller predictions, but they differ more as the predicted number of visits increases. The Poisson model is more appropriate because doctor visits are count data and its predictions stay nonnegative. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

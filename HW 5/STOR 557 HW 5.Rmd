@@ -1,0 +1,191 @@
+---
+title: "STOR 557 HW 5"
+author: "Branda Sisoutham"
+date: "2026-10-01"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(faraway)
+data(wavesolder)
+```
+
+```{r }
+plot(y1 ~ prebake, data = wavesolder)
+plot(y1 ~ flux, data = wavesolder)
+plot(y1 ~ speed, data = wavesolder)
+plot(y1 ~ preheat, data = wavesolder)
+plot(y1 ~ cooling, data = wavesolder)
+plot(y1 ~ agitator, data = wavesolder)
+plot(y1 ~ temp, data = wavesolder)
+
+boxplot(wavesolder$y1, wavesolder$y2, wavesolder$y3,
+        names = c("1", "2", "3"),
+        xlab = "Replicate",
+        ylab = "Defects",
+        main = "Defects by Replicate")
+```
+Speed and temperature seem to affect defects the most. The three replicates look similar, so there is no clear trend.
+
+```{r }
+m <- rowMeans(wavesolder[, c("y1", "y2", "y3")])
+
+v <- apply(wavesolder[, c("y1", "y2", "y3")], 1, var)
+
+plot(m, v,
+     xlab = "Mean",
+     ylab = "Variance",
+     main = "Variance vs Mean")
+
+abline(0, 1)
+```
+
+```{r }
+plot(log(m), log(v),
+     xlab = "Log Mean",
+     ylab = "Log Variance",
+     main = "Log Variance vs Log Mean")
+
+abline(0, 1)
+```
+The variance is usually much larger than the mean, so the Poisson model may not fit well. The log plot also shows that the variance increases as the mean increases.
+```{r}
+ws <- data.frame(
+  defects = c(wavesolder$y1, wavesolder$y2, wavesolder$y3),
+  replicate = factor(rep(1:3, each = nrow(wavesolder))),
+  prebake = rep(wavesolder$prebake, 3),
+  flux = rep(wavesolder$flux, 3),
+  speed = rep(wavesolder$speed, 3),
+  preheat = rep(wavesolder$preheat, 3),
+  cooling = rep(wavesolder$cooling, 3),
+  agitator = rep(wavesolder$agitator, 3),
+  temp = rep(wavesolder$temp, 3)
+)
+```
+```{r }
+mod1 <- glm(defects ~ prebake + flux + speed + preheat +
+              cooling + agitator + temp,
+            family = poisson,
+            data = ws)
+
+summary(mod1)
+
+deviance(mod1)
+df.residual(mod1)
+
+pchisq(deviance(mod1),
+       df.residual(mod1),
+       lower.tail = FALSE)
+```
+The Poisson model does not fit well because the residual deviance 491.8 is much larger than the degrees of freedom 40, and the p-value is extremely small. 
+
+```{r }
+plot(fitted(mod1), residuals(mod1),
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted")
+
+abline(h = 0, lty = 2)
+
+qqnorm(residuals(mod1),
+       main = "QQ Plot of Residuals")
+qqline(residuals(mod1))
+```
+The residual plot shows some spread, and the QQ plot shows one clear outlier with a very large positive residual.
+
+```{r }
+i <- which.max(abs(residuals(mod1)))
+
+i
+ws[i, ]
+
+mod1e <- glm(defects ~ prebake + flux + speed + preheat +
+               cooling + agitator + temp,
+             family = poisson,
+             data = ws[-i, ])
+
+deviance(mod1e)
+df.residual(mod1e)
+
+pchisq(deviance(mod1e),
+       df.residual(mod1e),
+       lower.tail = FALSE)
+```
+After removing the outlier, the residual deviance dropped to 251.7 with 39 degrees of freedom, but the p-value is still extremely small. So the Poisson model still does not fit the data well.
+
+```{r }
+mod1f <- glm(defects ~ prebake + flux + speed + preheat +
+               cooling + agitator + temp,
+             family = quasipoisson,
+             data = ws[-i, ])
+
+summary(mod1f)
+summary(mod1f)$dispersion
+drop1(mod1f, test = "F")
+```
+The dispersion parameter is 6.64, showing overdispersion. The model summary and F-tests give similar results. Prebake, flux, speed, cooling, and temperature are significant, while preheat and agitator are not. More defects are associated with prebake level 2, speed level 2, flux level 1, cooling level 1, and temperature level 1.
+
+```{r }
+plot(fitted(mod1f), residuals(mod1f),
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted")
+
+abline(h = 0, lty = 2)
+qqnorm(residuals(mod1f),
+       main = "QQ Plot of Residuals")
+qqline(residuals(mod1f))
+```
+
+The proportions of tumor types are different across the body sites, so site and tumor type do not appear to be independent.
+```{r }
+chisq.test(tab)
+```The residuals look more balanced after using the quasi-Poisson model, although there are still a few unusual points. The QQ plot is mostly close to a straight line, with some deviation at the ends.
+
+```{r }
+data(melanoma)
+
+tab <- xtabs(count ~ site + tumor, data = melanoma)
+tab
+
+mosaicplot(tab,
+           main = "Melanoma Site vs Tumor Type",
+           xlab = "Site",
+           ylab = "Tumor Type")
+```
+The chi-square test is significant χ² = 65.81, df = 6, p < 0.001, so site and tumor type are not independent.
+
+```{r }
+mod2 <- glm(count ~ site + tumor,
+            family = poisson,
+            data = melanoma)
+
+summary(mod2)
+
+deviance(mod2)
+df.residual(mod2)
+
+pchisq(deviance(mod2),
+       df.residual(mod2),
+       lower.tail = FALSE)
+```
+The Poisson model does not fit the independence assumption well because the deviance is 51.80 with 6 degrees of freedom and the p-value is extremely small. This means site and tumor type are associated.
+
+```{r }
+r <- residuals(mod2, type = "deviance")
+
+res.tab <- xtabs(r ~ melanoma$site + melanoma$tumor)
+
+res.tab
+```
+The largest residual is for freckle tumors on the head which is about 5.14, so there are more of these cases than the independence model expects. There are also large negative residuals for superficial tumors on the head and freckle tumors on the trunk, showing where the model fits poorly. 
+
+```{r }
+mel.nohead <- droplevels(subset(melanoma, site != "head"))
+tab.nohead <- xtabs(count ~ site + tumor, data = mel.nohead)
+chisq.test(tab.nohead)
+```
+After removing the head cases, the chi-square test is not significant. This suggests that site and tumor type are independent for the remaining locations.
+
+
+

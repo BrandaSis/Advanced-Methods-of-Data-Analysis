@@ -1,0 +1,141 @@
+---
+title: "Homework 3"
+author: "Branda Sisoutham"
+date: "2026-09-15"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(faraway)
+data(gala)
+```
+
+## Question 2
+
+```{r}
+head(gala)
+```
+```{r}
+gala_glm = glm(Species ~ Area + Elevation + Nearest + Scruz + Adjacent,
+               family = poisson,
+               data = gala)
+
+summary(gala_glm)
+```
+The model gives us 3.15 as the intercept, -0.0005799 for Area, 0.003541 for Elevation, 0.008826 for Nearest, -0.005709 for Scruz, and -0.0006630 for Adjacent. The residual deviance was 716.85.
+
+$$
+\eta = \log(\mu)
+$$
+
+$$
+\frac{d\eta}{d\mu} = \frac{1}{\mu}
+$$
+
+The variance function is
+
+$$
+V(\mu) = \mu
+$$
+
+The weights are
+
+$$
+w = \mu
+$$
+
+The adjusted dependent variable is
+
+$$
+z = \log(\mu) + \frac{y-\mu}{\mu}
+$$
+
+```{r}
+y = gala$Species
+mu = (y + mean(y)) / 2
+
+w = mu
+z = log(mu) + (y - mu) / mu
+```
+
+```{r}
+fit1 = lm(z ~ Area + Elevation + Nearest + Scruz + Adjacent,
+          weights = w, data = gala)
+
+coef(fit1)
+```
+In the first iteration, the estimated coefficients are 3.29437, -0.0005501, 0.0034563, 0.0032967, -0.0029947, and -0.0007104. These are  close to the coefficients from the GLM fit, but there are some differences.
+
+```{r}
+eta1 = fitted(fit1)
+mu1 = exp(eta1)
+dev1 = 2 * sum(y * log(y / mu1) - (y - mu1))
+dev1
+```
+After the first iteration, the deviance is 802.17. This is close to the final GLM deviance of 716.85, but the model has not converged yet.
+
+```{r}
+w1 = mu1
+z1 = log(mu1) + (y - mu1) / mu1
+fit2 = lm(z1 ~ Area + Elevation + Nearest + Scruz + Adjacent,
+          weights = w1, data = gala)
+
+coef(fit2)
+```
+
+```{r}
+eta2 = fitted(fit2)
+mu2 = exp(eta2)
+
+dev2 = 2 * sum(y * log(y / mu2) - (y - mu2))
+dev2
+```
+After the second iteration, the coefficients are 3.16465, -0.0005731, 0.0035188, 0.0077916, -0.0050691, and -0.0006715. The deviance is 718.51, which is close to the final GLM deviance of 716.85, this could mean its starting to converge.
+
+```{r}
+w2 = mu2
+z2 = log(mu2) + (y - mu2) / mu2
+
+fit3 = lm(z2 ~ Area + Elevation + Nearest + Scruz + Adjacent,
+          weights = w2, data = gala)
+
+coef(fit3)
+```
+
+```{r}
+eta3 = fitted(fit3)
+mu3 = exp(eta3)
+
+dev3 = 2 * sum(y * log(y / mu3) - (y - mu3))
+dev3
+```
+
+```{r}
+w3 = mu3
+z3 = log(mu3) + (y - mu3) / mu3
+
+fit4 = lm(z3 ~ Area + Elevation + Nearest + Scruz + Adjacent,
+          weights = w3, data = gala)
+
+coef(fit4)
+```
+
+```{r}
+eta4 = fitted(fit4)
+mu4 = exp(eta4)
+
+dev4 = 2 * sum(y * log(y / mu4) - (y - mu4))
+dev4
+```
+After the fourth iteration, the deviance is 716.8458 and is no longer changing much. The final estimated coefficients are also nearly identical to those from the direct GLM fit. Therefore, its converged.
+
+```{r}
+X = model.matrix(fit4)
+W = diag(w3)
+
+se_manual = sqrt(diag(solve(t(X) %*% W %*% X)))
+
+se_manual
+```
+The SE from the final iterated linear model are 0.05174, 0.00002627, 0.00008738, 0.001821, 0.0006248, and 0.00002932. These are almost identical to the SE from the direct GLM fit.
